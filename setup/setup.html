@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup - Discord Stickers Showcase</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.03) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .setup-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 3rem;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            position: relative;
+            z-index: 1;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            font-weight: 400;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .step {
+            width: 40px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+
+        .step.active {
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .setup-content {
+            margin-bottom: 2rem;
+        }
+
+        .setup-step {
+            display: none;
+        }
+
+        .setup-step.active {
+            display: block;
+        }
+
+        .info-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .info-box h3 {
+            color: #fff;
+            font-size: 1.2rem;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+
+        .info-box p, .info-box li {
+            color: #aaa;
+            line-height: 1.6;
+            margin-bottom: 0.5rem;
+        }
+
+        .info-box ol {
+            margin-left: 1.5rem;
+        }
+
+        .info-box code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+        }
+
+        .btn {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 1rem;
+            font-family: 'Inter', sans-serif;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            width: 100%;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .discord-icon {
+            font-size: 4rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+            opacity: 0.8;
+        }
+
+        .success-icon {
+            font-size: 5rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        a {
+            color: #ccc;
+            text-decoration: underline;
+        }
+
+        a:hover {
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+            .setup-container {
+                padding: 2rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .btn-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="setup-container">
+        <h1>🎨 Setup</h1>
+        <p class="subtitle">Discord Stickers Showcase</p>
+
+        <div class="step-indicator">
+            <div class="step active"></div>
+            <div class="step"></div>
+            <div class="step"></div>
+        </div>
+
+        <div class="setup-content">
+            <!-- Step 1: Welcome -->
+            <div class="setup-step active" id="step1">
+                <div class="info-box">
+                    <h3>Welcome! 👋</h3>
+                    <p>Let's set up your Discord Stickers Showcase. This is a one-time setup process.</p>
+                    <p style="margin-top: 1rem;"><strong>You'll need:</strong></p>
+                    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                        <li>A Discord account</li>
+                        <li>Owner permissions for Discord servers with stickers</li>
+                        <li>Discord Bot credentials (we'll guide you)</li>
+                    </ul>
+                </div>
+                <button class="btn" onclick="nextStep()">Get Started →</button>
+            </div>
+
+            <!-- Step 2: Check Config -->
+            <div class="setup-step" id="step2">
+                <div class="info-box">
+                    <h3>⚙️ Configuration Check</h3>
+                    <p id="config-status">Checking configuration...</p>
+                    <div id="config-details" style="margin-top: 1rem;"></div>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
+                    <button class="btn" id="config-next-btn" onclick="nextStep()" disabled>Next →</button>
+                </div>
+            </div>
+
+            <!-- Step 3: Login -->
+            <div class="setup-step" id="step3">
+                <div class="discord-icon">🎮</div>
+                <div class="info-box">
+                    <h3>Login with Discord</h3>
+                    <p>Click below to login with Discord. You'll become the admin of this showcase.</p>
+                    <p style="margin-top: 1rem; font-size: 0.9rem; color: #777;">
+                        The first person to log in will be set as the admin. This can't be changed later without manual configuration.
+                    </p>
+                </div>
+                <a href="/auth/discord" class="btn">Login with Discord</a>
+            </div>
+
+            <!-- Step 4: Success -->
+            <div class="setup-step" id="step4">
+                <div class="success-icon">✅</div>
+                <div class="info-box">
+                    <h3>Setup Complete!</h3>
+                    <p>Your Discord Stickers Showcase is ready to use.</p>
+                    <p style="margin-top: 1rem;">Head to the admin panel to:</p>
+                    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                        <li>Add your bot to Discord servers</li>
+                        <li>Create permanent invite links</li>
+                        <li>Manage server settings</li>
+                    </ul>
+                </div>
+                <a href="/admin" class="btn">Go to Admin Panel →</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+
+        function nextStep() {
+            if (currentStep < 4) {
+                document.getElementById(`step${currentStep}`).classList.remove('active');
+                currentStep++;
+                document.getElementById(`step${currentStep}`).classList.add('active');
+                updateStepIndicator();
+
+                // Check config when moving to step 2
+                if (currentStep === 2) {
+                    checkConfig();
+                }
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                document.getElementById(`step${currentStep}`).classList.remove('active');
+                currentStep--;
+                document.getElementById(`step${currentStep}`).classList.add('active');
+                updateStepIndicator();
+            }
+        }
+
+        function updateStepIndicator() {
+            const steps = document.querySelectorAll('.step');
+            steps.forEach((step, index) => {
+                if (index < currentStep) {
+                    step.classList.add('active');
+                } else {
+                    step.classList.remove('active');
+                }
+            });
+        }
+
+        async function checkConfig() {
+            const statusEl = document.getElementById('config-status');
+            const detailsEl = document.getElementById('config-details');
+            const nextBtn = document.getElementById('config-next-btn');
+
+            try {
+                const response = await fetch('/api/setup/check');
+                const data = await response.json();
+
+                if (data.configured) {
+                    statusEl.textContent = '✅ Configuration looks good!';
+                    statusEl.style.color = '#fff';
+                    detailsEl.innerHTML = '<p style="color: #aaa;">All required environment variables are set.</p>';
+                    nextBtn.disabled = false;
+                } else {
+                    statusEl.textContent = '❌ Configuration incomplete';
+                    statusEl.style.color = '#ff6b6b';
+                    detailsEl.innerHTML = `
+                        <p style="color: #ff6b6b; margin-bottom: 1rem;"><strong>Missing configuration:</strong></p>
+                        <ul style="margin-left: 1.5rem; color: #aaa;">
+                            ${data.missing.map(item => `<li>${item}</li>`).join('')}
+                        </ul>
+                        <p style="margin-top: 1rem; color: #aaa;">
+                            Please update your <code>.env</code> file and restart the server.
+                        </p>
+                        <p style="margin-top: 0.5rem; color: #777; font-size: 0.9rem;">
+                            See <a href="https://github.com/yourusername/discord-stickers-showcase#setup" target="_blank">Setup Guide</a> for help.
+                        </p>
+                    `;
+                }
+            } catch (error) {
+                statusEl.textContent = '❌ Error checking configuration';
+                statusEl.style.color = '#ff6b6b';
+                detailsEl.innerHTML = '<p style="color: #ff6b6b;">Could not connect to server.</p>';
+            }
+        }
+
+        // Check if we're coming back from OAuth
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('success') === 'true') {
+            currentStep = 4;
+            document.querySelectorAll('.setup-step').forEach(step => step.classList.remove('active'));
+            document.getElementById('step4').classList.add('active');
+            updateStepIndicator();
+        }
+    </script>
+</body>
+</html>

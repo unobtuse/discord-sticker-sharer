@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Servers & Stickers</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎨 My Discord Servers</h1>
+            <div id="auth-section">
+                <button id="login-btn" class="btn">Login with Discord</button>
+                <div id="user-info" style="display: none;">
+                    <img id="user-avatar" alt="User Avatar">
+                    <span id="user-name"></span>
+                    <button id="logout-btn" class="btn btn-secondary">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <main id="main-content">
+            <div id="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading your servers...</p>
+            </div>
+
+            <div id="welcome" class="welcome-message">
+                <h2>Welcome!</h2>
+                <p>Login with Discord to view your servers and their stickers.</p>
+            </div>
+
+            <div id="bot-notice" class="bot-notice" style="display: none;">
+                <h3>⚠️ Bot Not Installed</h3>
+                <p>To display stickers, you need to add the bot to your Discord servers.</p>
+                <button id="add-bot-btn" class="btn">Add Bot to Servers</button>
+            </div>
+
+            <div id="guilds-container"></div>
+
+            <div id="error-message" class="error" style="display: none;"></div>
+        </main>
+    </div>
+
+    <!-- Edit Guild Modal -->
+    <div id="edit-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Edit Server</h2>
+            <form id="edit-guild-form">
+                <input type="hidden" id="edit-guild-id">
+                
+                <div class="form-group">
+                    <label for="edit-guild-name">Server Name</label>
+                    <input type="text" id="edit-guild-name" placeholder="Enter new server name">
+                </div>
+
+                <div class="form-group">
+                    <label for="edit-guild-icon">Server Icon</label>
+                    <input type="file" id="edit-guild-icon" accept="image/*">
+                    <small>PNG, JPG, or GIF - Max 10MB</small>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn">Save Changes</button>
+                    <button type="button" id="cancel-edit" class="btn btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

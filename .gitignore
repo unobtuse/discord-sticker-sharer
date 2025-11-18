@@ -1,0 +1,32 @@
+# Environment variables
+.env
+
+# Node modules
+node_modules/
+
+# Data files (contain sensitive info)
+data/config.json
+data/invites.json
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# PM2
+.pm2/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temp files
+tmp/
+temp/
