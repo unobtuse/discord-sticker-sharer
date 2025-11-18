@@ -19,6 +19,11 @@ const editGuildName = document.getElementById('edit-guild-name');
 const editGuildIcon = document.getElementById('edit-guild-icon');
 const cancelEditBtn = document.getElementById('cancel-edit');
 
+// Settings modal elements
+const settingsModal = document.getElementById('settings-modal');
+const settingsBtn = document.getElementById('settings-btn');
+const cancelSettingsBtn = document.getElementById('cancel-settings');
+
 // Event listeners
 loginBtn.addEventListener('click', () => {
     window.location.href = '/login';
@@ -36,6 +41,23 @@ addBotBtn.addEventListener('click', async () => {
 
 cancelEditBtn.addEventListener('click', () => {
     closeEditModal();
+});
+
+// Settings button listener
+settingsBtn.addEventListener('click', () => {
+    settingsModal.style.display = 'flex';
+    loadOGSettings();
+});
+
+cancelSettingsBtn.addEventListener('click', () => {
+    settingsModal.style.display = 'none';
+});
+
+// Close settings modal on background click
+settingsModal.addEventListener('click', (e) => {
+    if (e.target === settingsModal) {
+        settingsModal.style.display = 'none';
+    }
 });
 
 editForm.addEventListener('submit', async (e) => {
@@ -70,6 +92,7 @@ async function checkAuth() {
 function showWelcome() {
     loginBtn.style.display = 'block';
     userInfo.style.display = 'none';
+    settingsBtn.style.display = 'none';
     welcome.style.display = 'block';
     loading.style.display = 'none';
     guildsContainer.innerHTML = '';
@@ -105,6 +128,7 @@ async function loadUserData() {
         userName.textContent = user.username;
         loginBtn.style.display = 'none';
         userInfo.style.display = 'flex';
+        settingsBtn.style.display = 'inline-block';
         
         await loadGuilds();
     } catch (error) {
@@ -487,8 +511,147 @@ function createStickerItem(sticker) {
     return item;
 }
 
+// Load Open Graph settings
+async function loadOGSettings() {
+    try {
+        const response = await fetch('/api/og-config');
+        const config = await response.json();
+        
+        document.getElementById('og-title').value = config.title;
+        document.getElementById('og-description').value = config.description;
+        document.getElementById('og-image').value = config.image;
+        document.getElementById('og-url').value = config.url;
+        document.getElementById('og-site-name').value = config.siteName;
+        
+        // Update image preview if exists
+        if (config.image) {
+            updateImagePreview(config.image);
+        }
+    } catch (error) {
+        console.error('Failed to load OG settings:', error);
+    }
+}
+
+// Handle OG image file selection
+function setupOGImageUpload() {
+    const fileInput = document.getElementById('og-image-file');
+    
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // Show preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            updateImagePreview(e.target.result);
+            document.getElementById('og-image-name').textContent = file.name;
+        };
+        reader.readAsDataURL(file);
+        
+        // Upload file
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        try {
+            const response = await fetch('/api/og-upload-image', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Store the URL (make it absolute if needed)
+                const fullUrl = window.location.origin + data.imageUrl;
+                document.getElementById('og-image').value = fullUrl;
+                console.log('Image uploaded:', fullUrl);
+            } else {
+                alert('Failed to upload image: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            alert('Failed to upload image');
+        }
+    });
+}
+
+function updateImagePreview(imageUrl) {
+    const preview = document.getElementById('og-image-preview');
+    
+    // Check if we have a valid image URL (and it's not just a placeholder URL)
+    if (imageUrl && imageUrl.includes('/uploads/') || (imageUrl && !imageUrl.includes('placeholder'))) {
+        preview.innerHTML = `<img src="${imageUrl}" alt="Preview">`;
+    } else {
+        preview.innerHTML = `
+            <div class="image-preview-placeholder">
+                <svg fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/>
+                </svg>
+                <p>No image selected</p>
+            </div>
+        `;
+    }
+}
+
+// Setup Open Graph form submission
+function setupOGForm() {
+    const form = document.getElementById('og-form');
+    
+    if (!form) return; // Form not on page yet
+    
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = '💾 Saving...';
+        
+        const formData = {
+            title: document.getElementById('og-title').value,
+            description: document.getElementById('og-description').value,
+            image: document.getElementById('og-image').value,
+            url: document.getElementById('og-url').value,
+            siteName: document.getElementById('og-site-name').value
+        };
+        
+        try {
+            const response = await fetch('/api/og-config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                submitBtn.textContent = '✅ Saved!';
+                setTimeout(() => {
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+                    settingsModal.style.display = 'none';
+                }, 1500);
+            } else {
+                throw new Error(data.error || 'Failed to save');
+            }
+        } catch (error) {
+            alert('Error saving Open Graph settings: ' + error.message);
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        }
+    });
+}
+
 // Initialize on page load
 checkAuth();
+
+// Setup OG form after page loads
+setTimeout(() => {
+    setupOGForm();
+    setupOGImageUpload();
+}, 500);
 
 // Check for errors in URL
 const urlParams = new URLSearchParams(window.location.search);

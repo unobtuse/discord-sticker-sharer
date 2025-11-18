@@ -5,7 +5,35 @@ const loading = document.getElementById('loading');
 const stickersGrid = document.getElementById('stickers-grid');
 const errorDiv = document.getElementById('error');
 
+// Load Open Graph metadata
+async function loadOGMetadata() {
+    try {
+        const response = await fetch('/api/og-config');
+        const config = await response.json();
+        
+        // Update OG tags
+        document.getElementById('og-type').setAttribute('content', config.type);
+        document.getElementById('og-url').setAttribute('content', config.url || window.location.href);
+        document.getElementById('og-title').setAttribute('content', config.title);
+        document.getElementById('og-description').setAttribute('content', config.description);
+        document.getElementById('og-image').setAttribute('content', config.image);
+        document.getElementById('og-site-name').setAttribute('content', config.siteName);
+        
+        // Update Twitter tags
+        document.getElementById('twitter-url').setAttribute('content', config.url || window.location.href);
+        document.getElementById('twitter-title').setAttribute('content', config.title);
+        document.getElementById('twitter-description').setAttribute('content', config.description);
+        document.getElementById('twitter-image').setAttribute('content', config.image);
+        
+        // Update page title
+        document.title = config.title;
+    } catch (error) {
+        console.error('Failed to load OG metadata:', error);
+    }
+}
+
 // Show modal on every page load
+loadOGMetadata();
 welcomeModal.classList.add('active');
 
 // Close modal

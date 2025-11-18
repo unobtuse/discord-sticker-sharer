@@ -7,6 +7,10 @@ node_modules/
 # Data files (contain sensitive info)
 data/config.json
 data/invites.json
+data/og-config.json
+
+# Uploaded files
+public/uploads/
 
 # Logs
 logs/

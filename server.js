@@ -6,78 +6,49 @@ const path = require('path');
 const multer = require('multer');
 const fs = require('fs').promises;
 const fsSync = require('fs');
-const crypto = require('crypto');
 
 // Configure multer for file uploads (in memory)
 const upload = multer({ 
   storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
   }
 });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Discord API configuration
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'discord-stickers-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: false,
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    httpOnly: true
+  }
+}));
+
+// Serve public files at root
+app.use(express.static('public', { index: false }));
+
+// Serve admin files
+app.use('/admin', express.static('public/admin'));
+
 const DISCORD_API = 'https://discord.com/api/v10';
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
-const REDIRECT_URI = process.env.REDIRECT_URI || `http://localhost:${PORT}/auth/callback`;
+const REDIRECT_URI = process.env.DISCORD_REDIRECT_URI;
 
-// Generate session secret if not provided
-let SESSION_SECRET = process.env.SESSION_SECRET;
-if (!SESSION_SECRET) {
-  SESSION_SECRET = crypto.randomBytes(32).toString('hex');
-  console.log('⚠️  No SESSION_SECRET found in .env, generated temporary secret.');
-  console.log('   Add this to your .env file to persist sessions across restarts:');
-  console.log(`   SESSION_SECRET=${SESSION_SECRET}`);
-}
-
-// Configuration file paths
-const CONFIG_FILE = path.join(__dirname, 'data', 'config.json');
-const INVITES_FILE = path.join(__dirname, 'data', 'invites.json');
-
-// Ensure data directory exists
-if (!fsSync.existsSync(path.join(__dirname, 'data'))) {
-  fsSync.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
-}
-
-// Load or initialize configuration
-let config = {
-  setupComplete: false,
-  adminUserId: null
-};
-
-if (fsSync.existsSync(CONFIG_FILE)) {
-  try {
-    config = JSON.parse(fsSync.readFileSync(CONFIG_FILE, 'utf8'));
-  } catch (error) {
-    console.error('Error loading config:', error);
-  }
-}
-
-function saveConfig() {
-  try {
-    fsSync.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-  } catch (error) {
-    console.error('Error saving config:', error);
-  }
-}
-
-// Middleware
-app.use(express.json());
-app.use(express.static('public'));
-app.use(session({
-  secret: SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production'
-  }
-}));
+// Admin whitelist
+const ADMIN_USERNAME = 'defnotnellz';
 
 // Cache for public stickers
 let publicStickersCache = null;
@@ -87,6 +58,25 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 // Cache for bot admin status per guild
 const botAdminCache = new Map();
 const BOT_ADMIN_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+
+// Invites storage file
+const INVITES_FILE = path.join(__dirname, 'data', 'invites.json');
+const OG_CONFIG_FILE = path.join(__dirname, 'data', 'og-config.json');
+
+// Ensure data directory exists
+if (!fsSync.existsSync(path.join(__dirname, 'data'))) {
+  fsSync.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
+}
+
+// Default Open Graph configuration
+const DEFAULT_OG_CONFIG = {
+  title: 'Discord Stickers Showcase',
+  description: 'Explore our collection of Discord stickers from various servers',
+  image: 'https://via.placeholder.com/1200x630/0a0a0a/ffffff?text=Discord+Stickers',
+  url: '',
+  type: 'website',
+  siteName: 'Discord Stickers Showcase'
+};
 
 // Helper functions for invite storage
 async function loadInvites() {
@@ -116,113 +106,107 @@ async function getStoredInvite(guildId) {
   return invites[guildId]?.code || null;
 }
 
-// Middleware to check if setup is complete
-function requireSetup(req, res, next) {
-  if (!config.setupComplete) {
-    return res.redirect('/setup');
+// Helper functions for OG config storage
+async function loadOGConfig() {
+  try {
+    const data = await fs.readFile(OG_CONFIG_FILE, 'utf8');
+    return { ...DEFAULT_OG_CONFIG, ...JSON.parse(data) };
+  } catch (error) {
+    return DEFAULT_OG_CONFIG;
   }
-  next();
+}
+
+async function saveOGConfig(config) {
+  try {
+    await fs.writeFile(OG_CONFIG_FILE, JSON.stringify(config, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Error saving OG config:', error);
+    return false;
+  }
 }
 
 // Middleware to check if user is authorized admin
 function requireAdmin(req, res, next) {
-  if (!req.session.accessToken || !req.session.userId) {
+  if (!req.session.accessToken || !req.session.username) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  if (req.session.userId !== config.adminUserId) {
-    return res.status(403).json({ error: 'Not authorized' });
+  if (req.session.username !== ADMIN_USERNAME) {
+    return res.status(403).json({ error: 'Access denied' });
   }
   
   next();
 }
 
-// Setup routes
-app.get('/setup', (req, res) => {
-  // If already set up, redirect to admin
-  if (config.setupComplete) {
-    return res.redirect('/admin');
-  }
-  res.sendFile(path.join(__dirname, 'setup', 'setup.html'));
+// Root route - serve public page
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/api/setup/check', (req, res) => {
-  const missing = [];
-  
-  if (!process.env.DISCORD_BOT_TOKEN) missing.push('DISCORD_BOT_TOKEN');
-  if (!process.env.DISCORD_CLIENT_ID) missing.push('DISCORD_CLIENT_ID');
-  if (!process.env.DISCORD_CLIENT_SECRET) missing.push('DISCORD_CLIENT_SECRET');
-  
-  res.json({
-    configured: missing.length === 0,
-    missing: missing,
-    setupComplete: config.setupComplete
-  });
+// Admin route
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
 });
 
-// OAuth routes
-app.get('/auth/discord', (req, res) => {
-  const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds`;
+// OAuth2 routes
+app.get('/login', (req, res) => {
+  const authUrl = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI + '/admin/callback')}&response_type=code&scope=identify%20guilds`;
   res.redirect(authUrl);
 });
 
-app.get('/auth/callback', async (req, res) => {
+app.get('/admin/callback', async (req, res) => {
   const { code } = req.query;
-
+  
   if (!code) {
-    return res.redirect('/setup?error=no_code');
+    return res.redirect('/admin?error=no_code');
   }
 
   try {
-    // Exchange code for token
-    const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', 
+    // Exchange code for access token
+    const tokenResponse = await axios.post(`${DISCORD_API}/oauth2/token`, 
       new URLSearchParams({
         client_id: CLIENT_ID,
         client_secret: CLIENT_SECRET,
-        code: code,
         grant_type: 'authorization_code',
-        redirect_uri: REDIRECT_URI
+        code: code,
+        redirect_uri: REDIRECT_URI + '/admin/callback'
       }),
       {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       }
     );
 
-    const { access_token } = tokenResponse.data;
-
-    // Get user info
+    const accessToken = tokenResponse.data.access_token;
+    
+    // Fetch user info to check authorization
     const userResponse = await axios.get(`${DISCORD_API}/users/@me`, {
-      headers: { Authorization: `Bearer ${access_token}` }
+      headers: { Authorization: `Bearer ${accessToken}` }
     });
-
-    const user = userResponse.data;
-
-    // Store in session
-    req.session.accessToken = access_token;
-    req.session.userId = user.id;
-    req.session.username = user.username;
-    req.session.avatar = user.avatar;
-
-    // If this is first-time setup, set as admin
-    if (!config.setupComplete) {
-      config.adminUserId = user.id;
-      config.setupComplete = true;
-      saveConfig();
-      console.log(`✓ Setup complete! Admin set to: ${user.username} (${user.id})`);
-      return res.redirect('/setup?success=true');
+    
+    const username = userResponse.data.username;
+    
+    // Check if user is authorized admin
+    if (username !== ADMIN_USERNAME) {
+      console.log(`Unauthorized access attempt by: ${username}`);
+      return res.redirect('/admin?error=unauthorized');
     }
-
-    // Otherwise, redirect to admin
+    
+    // Store session data
+    req.session.accessToken = accessToken;
+    req.session.username = username;
+    req.session.userId = userResponse.data.id;
+    
     res.redirect('/admin');
   } catch (error) {
     console.error('OAuth error:', error.response?.data || error.message);
-    res.redirect('/setup?error=auth_failed');
+    res.redirect('/admin?error=auth_failed');
   }
 });
 
 app.get('/logout', (req, res) => {
   req.session.destroy();
-  res.redirect('/');
+  res.redirect('/admin');
 });
 
 // Public API endpoint - get all stickers from all guilds
@@ -309,18 +293,14 @@ app.get('/api/public/stickers', async (req, res) => {
             });
           });
         } catch (error) {
-          console.error(`Failed to fetch stickers for guild ${guild.id}:`, error.message);
+          console.error(`Failed to fetch stickers for guild ${guild.id}:`, error.response?.data || error.message);
         }
       })
     );
 
-    // Shuffle stickers for variety
-    allStickers.sort(() => Math.random() - 0.5);
-
-    // Cache the result
     publicStickersCache = allStickers;
     lastCacheUpdate = Date.now();
-
+    
     res.json(allStickers);
   } catch (error) {
     console.error('Public stickers fetch error:', error.response?.data || error.message);
@@ -328,8 +308,20 @@ app.get('/api/public/stickers', async (req, res) => {
   }
 });
 
-// Admin API routes
-app.get('/api/guilds', requireSetup, requireAdmin, async (req, res) => {
+// API endpoints
+app.get('/api/user', requireAdmin, async (req, res) => {
+  try {
+    const userResponse = await axios.get(`${DISCORD_API}/users/@me`, {
+      headers: { Authorization: `Bearer ${req.session.accessToken}` }
+    });
+    res.json(userResponse.data);
+  } catch (error) {
+    console.error('User fetch error:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
+app.get('/api/guilds', requireAdmin, async (req, res) => {
   try {
     // Fetch user's guilds
     const guildsResponse = await axios.get(`${DISCORD_API}/users/@me/guilds`, {
@@ -436,18 +428,77 @@ app.get('/api/guilds', requireSetup, requireAdmin, async (req, res) => {
 });
 
 app.get('/api/check-auth', (req, res) => {
-  if (!config.setupComplete) {
-    return res.json({ 
-      authenticated: false,
-      setupRequired: true
-    });
-  }
-
   res.json({ 
-    authenticated: !!req.session.accessToken && req.session.userId === config.adminUserId,
-    username: req.session.username || null,
-    setupRequired: false
+    authenticated: !!req.session.accessToken && req.session.username === ADMIN_USERNAME,
+    username: req.session.username || null
   });
+});
+
+// Get Open Graph configuration
+app.get('/api/og-config', async (req, res) => {
+  try {
+    const config = await loadOGConfig();
+    res.json(config);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load OG config' });
+  }
+});
+
+// Upload OG preview image
+app.post('/api/og-upload-image', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image provided' });
+    }
+
+    // Create uploads directory if it doesn't exist
+    const uploadsDir = path.join(__dirname, 'public', 'uploads');
+    if (!fsSync.existsSync(uploadsDir)) {
+      fsSync.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    // Generate unique filename
+    const ext = path.extname(req.file.originalname);
+    const filename = `og-preview-${Date.now()}${ext}`;
+    const filepath = path.join(uploadsDir, filename);
+
+    // Write file
+    await fs.writeFile(filepath, req.file.buffer);
+
+    // Return URL
+    const imageUrl = `/uploads/${filename}`;
+    res.json({ success: true, imageUrl });
+  } catch (error) {
+    console.error('Image upload error:', error);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
+});
+
+// Update Open Graph configuration (admin only)
+app.post('/api/og-config', requireAdmin, async (req, res) => {
+  try {
+    const { title, description, image, url, type, siteName } = req.body;
+    
+    const config = {
+      title: title || DEFAULT_OG_CONFIG.title,
+      description: description || DEFAULT_OG_CONFIG.description,
+      image: image || DEFAULT_OG_CONFIG.image,
+      url: url || DEFAULT_OG_CONFIG.url,
+      type: type || DEFAULT_OG_CONFIG.type,
+      siteName: siteName || DEFAULT_OG_CONFIG.siteName
+    };
+    
+    const saved = await saveOGConfig(config);
+    
+    if (saved) {
+      res.json({ success: true, config });
+    } else {
+      res.status(500).json({ error: 'Failed to save OG config' });
+    }
+  } catch (error) {
+    console.error('OG config update error:', error);
+    res.status(500).json({ error: 'Failed to update OG config' });
+  }
 });
 
 app.get('/api/bot-invite-url', (req, res) => {
@@ -474,7 +525,7 @@ app.get('/api/bot-admin-url/:guildId?', (req, res) => {
 });
 
 // Update guild settings (name and/or icon)
-app.patch('/api/guilds/:guildId', requireSetup, requireAdmin, upload.single('icon'), async (req, res) => {
+app.patch('/api/guilds/:guildId', requireAdmin, upload.single('icon'), async (req, res) => {
   const { guildId } = req.params;
   const { name } = req.body;
 
@@ -488,46 +539,45 @@ app.patch('/api/guilds/:guildId', requireSetup, requireAdmin, upload.single('ico
 
     // Add icon if provided
     if (req.file) {
-      // Convert to base64 data URI
+      // Convert image to base64 data URI
       const base64Image = req.file.buffer.toString('base64');
-      const mimeType = req.file.mimetype;
-      updateData.icon = `data:${mimeType};base64,${base64Image}`;
+      updateData.icon = `data:${req.file.mimetype};base64,${base64Image}`;
     }
 
-    // If nothing to update
     if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({ error: 'No data provided to update' });
+      return res.status(400).json({ error: 'No updates provided' });
     }
 
-    // Update the guild
+    // Update guild via Discord API
     const response = await axios.patch(
       `${DISCORD_API}/guilds/${guildId}`,
       updateData,
       {
-        headers: {
+        headers: { 
           Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
           'Content-Type': 'application/json'
         }
       }
     );
 
-    // Clear the cache to force refresh
+    // Clear the guilds cache
     publicStickersCache = null;
 
-    res.json({
-      success: true,
-      guild: response.data
+    res.json({ 
+      success: true, 
+      guild: response.data,
+      message: 'Guild updated successfully'
     });
   } catch (error) {
-    console.error('Guild update error:', error.response?.data || error.message);
-    res.status(error.response?.status || 500).json({
+    console.error('Update guild error:', error.response?.data || error.message);
+    res.status(error.response?.status || 500).json({ 
       error: error.response?.data?.message || 'Failed to update guild'
     });
   }
 });
 
-// Create permanent invite for a guild
-app.post('/api/guilds/:guildId/create-invite', requireSetup, requireAdmin, async (req, res) => {
+// Create invite for a specific guild
+app.post('/api/guilds/:guildId/create-invite', requireAdmin, async (req, res) => {
   const { guildId } = req.params;
 
   try {
@@ -615,25 +665,6 @@ app.post('/api/guilds/:guildId/create-invite', requireSetup, requireAdmin, async
   }
 });
 
-// Redirect root to setup if not configured, otherwise show public page
-app.get('/', (req, res) => {
-  if (!config.setupComplete) {
-    return res.redirect('/setup');
-  }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Admin page
-app.get('/admin', requireSetup, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
-});
-
-// Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Discord Stickers Showcase running on port ${PORT}`);
-  console.log(`📍 Local: http://localhost:${PORT}`);
-  console.log(`⚙️  Setup complete: ${config.setupComplete ? 'Yes' : 'No'}`);
-  if (!config.setupComplete) {
-    console.log(`\n👉 Visit http://localhost:${PORT}/setup to complete setup`);
-  }
+  console.log(`Server running on port ${PORT}`);
 });
