@@ -139,9 +139,40 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// Root route - serve public page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Root route - serve public page with server-rendered OG tags
+app.get('/', async (req, res) => {
+  try {
+    // Load OG config
+    const ogConfig = await loadOGConfig();
+    
+    // Read the HTML file
+    let html = await fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8');
+    
+    // Get the full URL for the site
+    const siteUrl = ogConfig.url || `${req.protocol}://${req.get('host')}`;
+    
+    // Replace meta tag content with actual values
+    html = html.replace('content="website" id="og-type"', `content="${ogConfig.type}" id="og-type"`);
+    html = html.replace('content="" id="og-url"', `content="${siteUrl}" id="og-url"`);
+    html = html.replace('content="Discord Stickers Showcase" id="og-title"', `content="${ogConfig.title}" id="og-title"`);
+    html = html.replace('content="Explore our collection of Discord stickers from various servers" id="og-description"', `content="${ogConfig.description}" id="og-description"`);
+    html = html.replace('content="https://via.placeholder.com/1200x630/0a0a0a/ffffff?text=Discord+Stickers" id="og-image"', `content="${ogConfig.image}" id="og-image"`);
+    html = html.replace('content="Discord Stickers Showcase" id="og-site-name"', `content="${ogConfig.siteName}" id="og-site-name"`);
+    
+    // Replace Twitter card values
+    html = html.replace('content="" id="twitter-url"', `content="${siteUrl}" id="twitter-url"`);
+    html = html.replace('content="Discord Stickers Showcase" id="twitter-title"', `content="${ogConfig.title}" id="twitter-title"`);
+    html = html.replace('content="Explore our collection of Discord stickers from various servers" id="twitter-description"', `content="${ogConfig.description}" id="twitter-description"`);
+    html = html.replace('content="https://via.placeholder.com/1200x630/0a0a0a/ffffff?text=Discord+Stickers" id="twitter-image"', `content="${ogConfig.image}" id="twitter-image"`);
+    
+    // Replace page title
+    html = html.replace('<title>Discord Stickers Collection</title>', `<title>${ogConfig.title}</title>`);
+    
+    res.send(html);
+  } catch (error) {
+    console.error('Error serving index with OG tags:', error);
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
 });
 
 // Admin route
